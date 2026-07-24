@@ -1,5 +1,7 @@
 # Implementation Summary: Issues #559, #560, #561, #562
 
+> **Status check (2026-07-24):** In some forks of this repo, later backlog documents (`issues.md`, `GITHUB_ISSUES.md`, `PROJECT_ISSUES.md`) listed what looked like the same three problems as still open, appearing to contradict this document. Those documents don't exist in this repository's history — see `SECURITY_STATUS_RECONCILIATION.md` for why, and for direct re-verification of this document's claims against current code.
+
 ## Overview
 This document summarizes the fixes implemented for four critical security and bug issues in the StellarEduPay backend.
 
