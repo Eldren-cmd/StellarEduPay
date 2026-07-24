@@ -140,7 +140,7 @@ const { strictLimiter, verifyLimiter } = require("../middleware/rateLimiter");
  */
 
 // No school context required
-router.get("/verify/:txHash", validateTxHashParam, verifyTransactionHash);
+router.get("/verify/:txHash", validateTxHashParam, verifyLimiter, verifyTransactionHash);
 
 // Validation runs BEFORE resolveSchool so missing-school requests still get
 // proper 400 validation errors when the body itself is invalid.
