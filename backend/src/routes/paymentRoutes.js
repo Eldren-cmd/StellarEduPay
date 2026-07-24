@@ -56,10 +56,14 @@ const {
   validateSubmitTransaction,
 } = require("../middleware/validate");
 const { resolveSchool } = require("../middleware/schoolContext");
-const idempotency = require("../middleware/idempotency");
+const idempotencyMiddleware = require("../middleware/idempotency");
 const { requireAdminAuth } = require("../middleware/auth");
 const { auditContext } = require("../middleware/auditContext");
 const { strictLimiter, verifyLimiter } = require("../middleware/rateLimiter");
+
+// Idempotency middleware for critical payment endpoints that must fail-closed
+// when the datastore becomes unreachable to prevent duplicate submissions.
+const idempotency = idempotencyMiddleware({ criticalPaymentEndpoints: true });
 
 /**
  * @swagger
