@@ -294,6 +294,8 @@ paymentSchema.post('save', async function () {
       if (student && student.parentEmail) {
         // Queue email via BullMQ (non-blocking)
         const emailService = require('./emailService');
+        // Use cumulative totalPaid for accurate remaining balance (issue #1031)
+        const totalPaid = student.totalPaid || 0;
         await emailService.sendPaymentReceipt({
           schoolId: this.schoolId,
           studentId: this.studentId,
@@ -302,7 +304,7 @@ paymentSchema.post('save', async function () {
           amount: this.amount,
           txHash: this.txHash,
           confirmedAt: this.confirmedAt,
-          remainingBalance: student.feeAmount - this.amount,
+          remainingBalance: student.feeAmount - totalPaid,
         });
       }
 
