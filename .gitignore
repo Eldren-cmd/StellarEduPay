@@ -36,3 +36,8 @@ Thumbs.db
 
 # Backup archives (managed by scripts/backup.sh)
 backups/
+
+# Raw terminal/console output dumps (should never be committed)
+test_results.txt
+test_results*.txt
+test_output*.txt
