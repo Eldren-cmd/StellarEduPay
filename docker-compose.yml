@@ -3,6 +3,10 @@ version: '3.8'
 services:
   backend:
     build: ./backend
+    # Apply pending database migrations before starting the server. `npm run
+    # migrate` exits non-zero on failure, so the container will not start (and
+    # therefore never becomes healthy) if a migration fails.
+    command: ["sh", "-c", "npm run migrate && npm start"]
     ports:
       - "${PORT:-5000}:5000"
     environment:

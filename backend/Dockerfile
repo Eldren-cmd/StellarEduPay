@@ -15,6 +15,13 @@ RUN npm ci --omit=dev
 # Copy source
 COPY src/ ./src/
 
+# Copy database migrations and the deploy-time migration CLI. These MUST be in
+# the image: the migration runner fails loudly if migrations/ is absent, and
+# the deployment runs `npm run migrate` before serving traffic (see
+# deploy/k8s/backend-deployment.yaml initContainer and docs/migrations.md).
+COPY migrations/ ./migrations/
+COPY scripts/ ./scripts/
+
 # Own everything as the non-root user
 RUN chown -R appuser:appgroup /app
 

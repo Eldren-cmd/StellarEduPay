@@ -28,7 +28,19 @@ const MIGRATIONS_DIR = path.join(__dirname, '../../migrations');
  * @param {Function} [_require] - injectable require for testing
  */
 async function runMigrations(_require = require) {
-  if (!fs.existsSync(MIGRATIONS_DIR)) return;
+  // Fail loudly rather than silently no-op. The migrations directory is a
+  // required part of every deployment (it is copied into the production image
+  // by backend/Dockerfile). If it is missing here we are almost certainly in a
+  // broken build/deploy where migrations would otherwise be skipped without a
+  // trace — that must abort the run so the operator notices, not proceed as if
+  // there were nothing to apply.
+  if (!fs.existsSync(MIGRATIONS_DIR)) {
+    throw new Error(
+      `[Migration] Migrations directory not found at "${MIGRATIONS_DIR}". ` +
+      'The production image must include the migrations/ directory ' +
+      '(see backend/Dockerfile). Refusing to continue.'
+    );
+  }
 
   const files = fs.readdirSync(MIGRATIONS_DIR)
     .filter(f => f.endsWith('.js'))
