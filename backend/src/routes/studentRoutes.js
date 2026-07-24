@@ -22,7 +22,7 @@ const {
 const { resubscribeReminders } = require('../controllers/reminderController');
 const { validateRegisterStudent, validateStudentIdParam } = require('../middleware/validate');
 const { resolveSchool } = require('../middleware/schoolContext');
-const { requireAdminAuth } = require('../middleware/auth');
+const { requireAdminAuth, requireSchoolAuth } = require('../middleware/auth');
 const { auditContext } = require('../middleware/auditContext');
 const { bulkImportLimiter } = require('../middleware/rateLimiter');
 const streamingCsvUpload = require('../middleware/streamingCsvUpload');
@@ -35,9 +35,11 @@ router.post('/bulk', requireAdminAuth, bulkImportLimiter, express.json({ limit: 
 router.get('/', requireAdminAuth, getAllStudents);
 router.get('/export', requireAdminAuth, exportStudents);
 
+// Authentication-required routes (Issue #1040: all student financial data requires auth)
+router.get('/summary', requireSchoolAuth(), getPaymentSummary);
+router.get('/overdue', requireSchoolAuth(), getOverdueStudents);
+
 // Public routes
-router.get('/summary', getPaymentSummary);
-router.get('/overdue', getOverdueStudents);
 router.get('/public/:studentId', validateStudentIdParam, getPublicStudentInfo);
 router.get('/:studentId', requireAdminAuth, validateStudentIdParam, getStudent);
 router.put('/:studentId', requireAdminAuth, validateStudentIdParam, auditContext, updateStudent);
