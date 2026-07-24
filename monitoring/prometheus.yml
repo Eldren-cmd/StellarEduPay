@@ -6,6 +6,13 @@ rule_files:
   - "alerts/price_feed.yml"
   - "alerts/horizon_poll.yml"
   - "alerts/payment_limits.yml"
+  - "alerts/receipts.yml"
+  - "alerts/webhook_alerts.yml"
+  - "alerts/api_errors.yml"
+  - "alerts/api_latency.yml"
+  - "alerts/mongodb.yml"
+  - "alerts/horizon_failover.yml"
+  - "alerts/queue_backpressure.yml"
 
 scrape_configs:
   - job_name: stellaredupay
