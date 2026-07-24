@@ -9,8 +9,7 @@ import { getErrorMessage } from "../utils/errorMessages";
 import { validateStellarAmount } from "../utils/stellarAmount";
 import { IconAlertTriangle, IconCheck } from "../components/Icons";
 import PageHero from "../components/PageHero";
-
-const SCHOOL_ID = process.env.NEXT_PUBLIC_SCHOOL_ID || "SCH001";
+import { useAdminAuth } from "../hooks/useAdminAuth";
 
 const RULE_TYPES = [
   { value: "discount_percentage", label: "Discount %" },
@@ -52,6 +51,7 @@ function RuleTypePill({ type }) {
 }
 
 export default function FeeAdjustments() {
+  const { schoolId } = useAdminAuth();
   const [rules, setRules]           = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
@@ -62,13 +62,14 @@ export default function FeeAdjustments() {
   const [formSuccess, setFormSuccess] = useState(false);
 
   const load = useCallback(() => {
+    if (!schoolId) return; // Don't load until we have the authenticated school context
     setLoading(true);
     setError(null);
-    getFeeAdjustmentRules(SCHOOL_ID)
+    getFeeAdjustmentRules(schoolId)
       .then(({ data }) => setRules(data))
       .catch(() => setError("Could not load rules."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [schoolId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -130,9 +131,9 @@ export default function FeeAdjustments() {
     setSaving(true);
     try {
       if (editId) {
-        await updateFeeAdjustmentRule(editId, payload, SCHOOL_ID);
+        await updateFeeAdjustmentRule(editId, payload, schoolId);
       } else {
-        await createFeeAdjustmentRule(payload, SCHOOL_ID);
+        await createFeeAdjustmentRule(payload, schoolId);
       }
       setFormSuccess(true);
       setTimeout(() => setFormSuccess(false), 3000);
@@ -150,7 +151,7 @@ export default function FeeAdjustments() {
   async function handleDeactivate(rule) {
     if (!confirm(`Deactivate "${rule.name}"?`)) return;
     try {
-      await deleteFeeAdjustmentRule(rule._id, SCHOOL_ID);
+      await deleteFeeAdjustmentRule(rule._id, schoolId);
       load();
     } catch {
       setError("Could not deactivate rule.");
