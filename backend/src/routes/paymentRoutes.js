@@ -45,6 +45,7 @@ const {
   verifyReceipt,
   getReconciliationReports,
   generateSchoolReconciliationReport,
+  correctPlaceholderPayment,
 } = require('../controllers/paymentAdminController');
 
 const {
@@ -201,6 +202,7 @@ router.post("/:paymentId/unlock", unlockPayment);
 
 router.patch("/:txHash/status", requireAdminAuth, auditContext, updatePaymentStatus);
 router.patch("/:txHash/suspicion-review", requireAdminAuth, auditContext, reviewSuspiciousPayment);
+router.patch("/:txHash/correct-placeholder", requireAdminAuth, auditContext, correctPlaceholderPayment);
 
 router.post("/:txHash/refund", requireAdminAuth, auditContext, initiatePaymentRefund);
 router.get("/:txHash/refunds", getPaymentRefunds);

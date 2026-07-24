@@ -549,6 +549,81 @@ async function generateSchoolReconciliationReport(req, res, next) {
   }
 }
 
+/**
+ * Correct a placeholder payment (zero-amount, FAILED status) once on-chain
+ * verification confirms the transaction succeeded. Issue #1030.
+ *
+ * When a transaction is permanently misclassified as failed, the verify endpoint
+ * creates a placeholder Payment (amount: 0, status: FAILED) that locks the unique
+ * index. This endpoint allows an admin to correct that record with the actual
+ * amount and status once the on-chain transaction is verified as successful.
+ */
+async function correctPlaceholderPayment(req, res, next) {
+  try {
+    const { schoolId } = req;
+    const { txHash } = req.params;
+    const { studentId, amount, status, reason } = req.body;
+
+    if (!studentId || amount === undefined || amount === null || !status || !reason) {
+      return res.status(400).json({
+        error: 'studentId, amount, status, and reason are required',
+        code: 'VALIDATION_ERROR',
+      });
+    }
+
+    // Find the placeholder payment (zero amount, FAILED status)
+    const placeholder = await Payment.findOne({ schoolId, txHash, amount: 0, status: 'FAILED' });
+    if (!placeholder) {
+      return res.status(404).json({
+        error: 'Placeholder payment not found (must have amount 0 and status FAILED)',
+        code: 'NOT_FOUND',
+      });
+    }
+
+    // Update with the actual transaction data
+    const previousStatus = placeholder.status;
+    const previousAmount = placeholder.amount;
+    const previousStudentId = placeholder.studentId;
+
+    placeholder.studentId = studentId;
+    placeholder.amount = amount;
+    placeholder.status = status;
+    placeholder.feeValidationStatus = 'unknown'; // Will be recalculated as needed
+
+    // Ensure admin override is set for the transition
+    placeholder.$locals.adminOverride = true;
+    const updated = await placeholder.save();
+
+    await logAudit({
+      schoolId,
+      action: 'payment_placeholder_corrected',
+      performedBy: req.auditContext?.performedBy || 'unknown',
+      targetId: txHash,
+      targetType: 'payment',
+      details: {
+        from: {
+          studentId: previousStudentId,
+          amount: previousAmount,
+          status: previousStatus,
+        },
+        to: {
+          studentId,
+          amount,
+          status,
+        },
+        reason,
+      },
+      result: 'success',
+      ipAddress: req.auditContext?.ipAddress,
+      userAgent: req.auditContext?.userAgent,
+    });
+
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   syncAllPayments,
   getSyncStatus,
@@ -569,6 +644,7 @@ module.exports = {
   verifyReceipt,
   getReconciliationReports,
   generateSchoolReconciliationReport,
+  correctPlaceholderPayment,
   // Exposed for testing — callers can introspect the lock state
   _lock: lock,
 };
