@@ -63,6 +63,33 @@ const paymentSchema = new mongoose.Schema(
       ],
     },
 
+    // Underpaid Payment Reconciliation (Issue #1039)
+    // Tracks reconciliation status and details for partial/underpaid payments
+    underpaidReconciliation: {
+      status: {
+        type: String,
+        enum: ['pending', 'partial_credited', 'refund_initiated', 'refund_completed'],
+        default: 'pending',
+      },
+      appliedCredit: {
+        type: Number,
+        default: 0,
+        min: [0, 'appliedCredit must be non-negative'],
+        validate: [
+          {
+            validator: (v) => Number.isFinite(v),
+            message: 'appliedCredit must be a finite number',
+          },
+        ],
+      },
+      creditAppliedAt: { type: Date, default: null },
+      creditAppliedBy: { type: String, default: null },
+      refundTxHash: { type: String, default: null },
+      refundInitiatedAt: { type: Date, default: null },
+      refundCompletedAt: { type: Date, default: null },
+      refundNote: { type: String, default: null },
+    },
+
     assetCode: {
       type: String,
       default: null,
