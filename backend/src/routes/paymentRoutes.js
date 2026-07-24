@@ -40,6 +40,7 @@ const {
   reviewSuspiciousPayment,
   streamPaymentEvents,
   initiatePaymentRefund,
+  approvePaymentRefund,
   getPaymentRefunds,
   getSchoolRefunds,
   verifyReceipt,
@@ -203,6 +204,7 @@ router.patch("/:txHash/status", requireAdminAuth, auditContext, updatePaymentSta
 router.patch("/:txHash/suspicion-review", requireAdminAuth, auditContext, reviewSuspiciousPayment);
 
 router.post("/:txHash/refund", requireAdminAuth, auditContext, initiatePaymentRefund);
+router.post("/refunds/:refundId/approve", requireAdminAuth, auditContext, approvePaymentRefund);
 router.get("/:txHash/refunds", getPaymentRefunds);
 router.get("/refunds/school/list", requireAdminAuth, getSchoolRefunds);
 

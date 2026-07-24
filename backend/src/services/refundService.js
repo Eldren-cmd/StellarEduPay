@@ -25,7 +25,7 @@ async function initiateRefund(schoolId, originalTxHash, studentId, amount, reaso
     originalTxHash,
     studentId,
     amount,
-    status: 'pending',
+    status: 'approval_pending',
     reason,
     initiatedBy,
   });
@@ -49,6 +49,60 @@ async function initiateRefund(schoolId, originalTxHash, studentId, amount, reaso
 
   logger.info('Refund initiated', { schoolId, originalTxHash, studentId, refundId: refund._id });
   return refund;
+}
+
+async function approveRefund(refundId, approvedBy) {
+  const refund = await Refund.findById(refundId);
+  if (!refund) {
+    const err = new Error('Refund not found');
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+
+  if (refund.status !== 'approval_pending') {
+    const err = new Error(`Cannot approve refund in ${refund.status} status`);
+    err.code = 'INVALID_STATE';
+    throw err;
+  }
+
+  if (refund.initiatedBy === approvedBy) {
+    const err = new Error('Approval must be by a different operator than the one who initiated the refund');
+    err.code = 'SELF_APPROVAL_NOT_ALLOWED';
+    throw err;
+  }
+
+  const previousStatus = refund.status;
+  refund.status = 'pending';
+  refund.approvedBy = approvedBy;
+  refund.approvedAt = new Date();
+
+  const updated = await refund.save();
+
+  const eventId = uuidv4();
+  await Outbox.create({
+    eventId,
+    eventType: 'refund.approved',
+    aggregateId: refund.originalTxHash,
+    aggregateType: 'payment',
+    payload: {
+      refundId: refund._id.toString(),
+      schoolId: refund.schoolId,
+      originalTxHash: refund.originalTxHash,
+      initiatedBy: refund.initiatedBy,
+      approvedBy,
+      amount: refund.amount,
+    },
+  });
+
+  logger.info('Refund approved', {
+    schoolId: refund.schoolId,
+    originalTxHash: refund.originalTxHash,
+    refundId: refund._id,
+    initiatedBy: refund.initiatedBy,
+    approvedBy,
+  });
+
+  return updated;
 }
 
 async function updateRefundStatus(refundId, newStatus, txHash = null, failureReason = null) {
@@ -112,6 +166,7 @@ async function getRefundsBySchool(schoolId, status = null) {
 
 module.exports = {
   initiateRefund,
+  approveRefund,
   updateRefundStatus,
   getRefundsByPayment,
   getRefundsBySchool,
