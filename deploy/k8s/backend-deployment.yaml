@@ -18,6 +18,33 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1001
+      # Apply all pending database migrations before the application container
+      # starts. Init containers run to completion first, so no traffic is routed
+      # to this pod (readiness probe on the app container) until migrations have
+      # succeeded. If a migration fails, the init container exits non-zero, the
+      # pod never becomes Ready, and the rollout is blocked — migrations can
+      # never be silently skipped.
+      #
+      # Running from every replica's init container is safe: migrationRunner.js
+      # uses the unique index on Migration.version as a distributed lock, so
+      # only one instance applies each migration and the rest skip it.
+      initContainers:
+        - name: migrate
+          image: stellaredupay/backend:latest
+          command: ["npm", "run", "migrate"]
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: stellaredupay
+                  key: MONGO_URI
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
       containers:
         - name: backend
           image: stellaredupay/backend:latest
