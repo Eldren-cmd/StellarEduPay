@@ -70,4 +70,4 @@ const bulkImportLimiter    = rl(
   { keyGenerator: (req) => req.schoolId || 'unknown-tenant' },
 );
 
-module.exports = { generalLimiter, strictLimiter, verifyLimiter, reminderTriggerLimiter, bulkImportLimiter };
+module.exports = { rl, generalLimiter, strictLimiter, verifyLimiter, reminderTriggerLimiter, bulkImportLimiter };

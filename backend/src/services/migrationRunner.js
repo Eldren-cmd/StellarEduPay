@@ -26,9 +26,18 @@ const MIGRATIONS_DIR = path.join(__dirname, '../../migrations');
  * identify stuck locks.
  *
  * @param {Function} [_require] - injectable require for testing
+ * @param {object} [_db] - injectable database handle for testing
  */
-async function runMigrations(_require = require) {
+async function runMigrations(_require = require, _db = null) {
   if (!fs.existsSync(MIGRATIONS_DIR)) return;
+
+  // Get database handle if not injected (normal operation)
+  let db = _db;
+  if (!db) {
+    const databaseConfig = require('../config/database');
+    const connection = databaseConfig.getConnection();
+    db = connection.db;
+  }
 
   const files = fs.readdirSync(MIGRATIONS_DIR)
     .filter(f => f.endsWith('.js'))
@@ -55,7 +64,7 @@ async function runMigrations(_require = require) {
     const logger = require('../utils/logger').child('Migration');
     logger.info(`Running: ${migration.version}`);
     try {
-      await migration.up();
+      await migration.up(db);
     } catch (err) {
       // Remove the lock document so the migration is not silently skipped on
       // the next run — the operator must fix the migration and redeploy.
@@ -78,8 +87,9 @@ async function runMigrations(_require = require) {
  * can be re-applied later.
  *
  * @param {Function} [_require] - injectable require for testing
+ * @param {object} [_db] - injectable database handle for testing
  */
-async function rollback(_require = require) {
+async function rollback(_require = require, _db = null) {
   const last = await Migration.findOne({ appliedAt: { $exists: true } })
     .sort({ appliedAt: -1 });
 
@@ -87,6 +97,14 @@ async function rollback(_require = require) {
     const logger = require('../utils/logger').child('Migration');
     logger.info('Nothing to roll back.');
     return;
+  }
+
+  // Get database handle if not injected (normal operation)
+  let db = _db;
+  if (!db) {
+    const databaseConfig = require('../config/database');
+    const connection = databaseConfig.getConnection();
+    db = connection.db;
   }
 
   // Find the matching file by version string
@@ -111,7 +129,7 @@ async function rollback(_require = require) {
 
   const logger = require('../utils/logger').child('Migration');
   logger.info(`Rolling back: ${last.version}`);
-  await migration.down();
+  await migration.down(db);
   await Migration.deleteOne({ version: last.version });
   logger.info(`Rolled back: ${last.version}`);
 }

@@ -56,6 +56,22 @@ if (redisEnabled) {
   client.connect().catch((err) =>
     logger.error('Redis lock client connect failed', { error: err.message })
   );
+} else {
+  // Issue #1043: Warn loudly if Redis is not configured in a multi-instance deployment.
+  // In single-instance deployments (REPLICA_COUNT=1 or unset), the fallback is safe.
+  // In multi-instance deployments, the in-process fallback provides no cross-replica
+  // exclusion and undermines the safety guarantees that depend on this module.
+  const replicaCount = parseInt(process.env.REPLICA_COUNT || '1', 10);
+  if (replicaCount > 1) {
+    logger.warn(
+      '[CRITICAL] DistributedLock: REDIS_HOST is not configured, but REPLICA_COUNT > 1. ' +
+      'Falling back to in-process locks with NO cross-replica exclusion. ' +
+      'Features depending on distributed locks (per-school payment sync, per-transaction verify lock) ' +
+      'will lose their concurrency guarantees and may experience race conditions, data corruption, or ' +
+      'duplicate transaction processing. Set REDIS_HOST immediately for production deployments with ' +
+      'multiple replicas.'
+    );
+  }
 }
 
 // In-process fallback store: key -> { token, fencingToken, expiresAt }
