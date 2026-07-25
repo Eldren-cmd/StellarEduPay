@@ -5,6 +5,7 @@ const Payment = require('../models/paymentModel');
 const Outbox = require('../models/outboxModel');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../utils/logger').child('RefundService');
+const { amountsEqual } = require('../utils/stellarAmount');
 
 async function initiateRefund(schoolId, originalTxHash, studentId, amount, reason, initiatedBy) {
   const payment = await Payment.findOne({ schoolId, txHash: originalTxHash, status: 'SUCCESS' });
@@ -14,7 +15,7 @@ async function initiateRefund(schoolId, originalTxHash, studentId, amount, reaso
     throw err;
   }
 
-  if (Math.abs(amount - payment.amount) > 0.0000001) {
+  if (!amountsEqual(amount, payment.amount)) {
     const err = new Error('Refund amount does not match original payment amount');
     err.code = 'AMOUNT_MISMATCH';
     throw err;
@@ -29,6 +30,13 @@ async function initiateRefund(schoolId, originalTxHash, studentId, amount, reaso
     reason,
     initiatedBy,
   });
+
+  // Update payment status to REFUNDED to reflect the in-flight refund.
+  // Uses adminOverride to allow the SUCCESS → REFUNDED transition via the proper
+  // .save() path (mirroring how dispute resolution handles payment status sync).
+  payment.$locals.adminOverride = true;
+  payment.status = 'REFUNDED';
+  await payment.save();
 
   const eventId = uuidv4();
   await Outbox.create({

@@ -63,6 +63,33 @@ const paymentSchema = new mongoose.Schema(
       ],
     },
 
+    // Underpaid Payment Reconciliation (Issue #1039)
+    // Tracks reconciliation status and details for partial/underpaid payments
+    underpaidReconciliation: {
+      status: {
+        type: String,
+        enum: ['pending', 'partial_credited', 'refund_initiated', 'refund_completed'],
+        default: 'pending',
+      },
+      appliedCredit: {
+        type: Number,
+        default: 0,
+        min: [0, 'appliedCredit must be non-negative'],
+        validate: [
+          {
+            validator: (v) => Number.isFinite(v),
+            message: 'appliedCredit must be a finite number',
+          },
+        ],
+      },
+      creditAppliedAt: { type: Date, default: null },
+      creditAppliedBy: { type: String, default: null },
+      refundTxHash: { type: String, default: null },
+      refundInitiatedAt: { type: Date, default: null },
+      refundCompletedAt: { type: Date, default: null },
+      refundNote: { type: String, default: null },
+    },
+
     assetCode: {
       type: String,
       default: null,
@@ -294,6 +321,8 @@ paymentSchema.post('save', async function () {
       if (student && student.parentEmail) {
         // Queue email via BullMQ (non-blocking)
         const emailService = require('./emailService');
+        // Use cumulative totalPaid for accurate remaining balance (issue #1031)
+        const totalPaid = student.totalPaid || 0;
         await emailService.sendPaymentReceipt({
           schoolId: this.schoolId,
           studentId: this.studentId,
@@ -302,7 +331,7 @@ paymentSchema.post('save', async function () {
           amount: this.amount,
           txHash: this.txHash,
           confirmedAt: this.confirmedAt,
-          remainingBalance: student.feeAmount - this.amount,
+          remainingBalance: student.feeAmount - totalPaid,
         });
       }
 

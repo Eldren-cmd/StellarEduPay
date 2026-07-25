@@ -48,6 +48,13 @@ jobs:
       - name: Audit frontend
         run: node scripts/check-dependency-audit.js frontend
 
+  migrations:
+    name: Validate migration numbering
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: node scripts/validate-migrations.js
+
   test:
     runs-on: ubuntu-latest
     env:
