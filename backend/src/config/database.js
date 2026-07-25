@@ -97,6 +97,12 @@ function setupConnectionEventHandlers() {
 
   mongoose.connection.on('error', (err) => {
     logger.error('[MongoDB] Connection error', { error: err.message, stack: err.stack });
+    try {
+      const { mongoConnectionErrorsTotal } = require('../metrics');
+      if (mongoConnectionErrorsTotal) mongoConnectionErrorsTotal.inc();
+    } catch (_) {
+      // metrics optional (tests / early boot)
+    }
   });
 
   mongoose.connection.on('disconnected', () => {
@@ -358,6 +364,7 @@ const databaseConfig = {
   healthCheck,
   getConnectionInfo,
   getConnection,
+  setupConnectionEventHandlers,
   POOL_CONFIG,
   RETRY_CONFIG,
   STARTUP_RETRY_CONFIG,
