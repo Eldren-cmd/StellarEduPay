@@ -15,6 +15,7 @@ const {
   verifyTransaction,
   recordPayment,
   validatePaymentWithDynamicFee,
+  determineConfirmationState,
 } = require('../services/stellarService');
 const { queueForRetry } = require('../services/retryService');
 const { server } = require('../config/stellarConfig');
@@ -391,6 +392,15 @@ async function verifyPayment(req, res, next) {
           : 0;
 
         now = new Date();
+
+        // Issue #1027: Compute confirmationState using the same logic as syncPaymentsForSchool
+        // to ensure manual verify produces consistent state machine values
+        const confirmation = await determineConfirmationState(
+          result.ledger || null,
+          undefined,
+          false,
+        );
+
         try {
           await recordPayment({
             schoolId,
@@ -405,7 +415,8 @@ async function verifyPayment(req, res, next) {
             memo: result.memo,
             senderAddress: result.senderAddress || null,
             ledgerSequence: result.ledger || null,
-            confirmationStatus: 'confirmed',
+            confirmationStatus: confirmation.confirmationStatus,
+            confirmationState: confirmation.state,
             confirmedAt: result.date ? new Date(result.date) : now,
             verifiedAt: now,
           });
