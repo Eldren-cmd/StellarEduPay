@@ -14,15 +14,17 @@ const refundSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ['pending', 'submitted', 'confirmed', 'failed'],
-      default: 'pending',
+      enum: ['approval_pending', 'pending', 'submitted', 'confirmed', 'failed'],
+      default: 'approval_pending',
       index: true,
     },
 
     reason:         { type: String, required: true, trim: true, maxlength: 1000 },
     initiatedBy:    { type: String, required: true },
+    approvedBy:     { type: String, default: null },
 
     confirmedAt:    { type: Date, default: null },
+    approvedAt:     { type: Date, default: null },
     failedAt:       { type: Date, default: null },
     failureReason:  { type: String, default: null },
   },

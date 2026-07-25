@@ -13,7 +13,7 @@ const { finalizeConfirmedPayments } = require('../services/stellarService');
 const { logAudit } = require('../services/auditService');
 const { syncDurationSeconds } = require('../metrics');
 const { syncPaymentsForSchool } = require('../services/stellarService');
-const { initiateRefund, getRefundsByPayment, getRefundsBySchool } = require('../services/refundService');
+const { initiateRefund, approveRefund, getRefundsByPayment, getRefundsBySchool } = require('../services/refundService');
 const { generateReconciliationReport } = require('../services/reconciliationService');
 const lock = require('../services/distributedLock');
 const { ADMIN_PAYMENT_STATUS_TRANSITIONS } = require('../constants/paymentStatus');
@@ -461,6 +461,41 @@ async function initiatePaymentRefund(req, res, next) {
   }
 }
 
+async function approvePaymentRefund(req, res, next) {
+  try {
+    const { schoolId } = req;
+    const { refundId } = req.params;
+    const approvedBy = req.auditContext?.performedBy || 'unknown';
+
+    const refund = await approveRefund(refundId, approvedBy);
+
+    await logAudit({
+      schoolId,
+      action: 'refund_approved',
+      performedBy: approvedBy,
+      targetId: refund._id.toString(),
+      targetType: 'refund',
+      details: {
+        refundId: refund._id.toString(),
+        originalTxHash: refund.originalTxHash,
+        initiatedBy: refund.initiatedBy,
+        approvedBy,
+        amount: refund.amount,
+      },
+      result: 'success',
+      ipAddress: req.auditContext?.ipAddress,
+      userAgent: req.auditContext?.userAgent,
+    });
+
+    res.json(refund);
+  } catch (err) {
+    if (err.code === 'SELF_APPROVAL_NOT_ALLOWED' || err.code === 'INVALID_STATE') {
+      return res.status(400).json({ error: err.message, code: err.code });
+    }
+    next(err);
+  }
+}
+
 async function getPaymentRefunds(req, res, next) {
   try {
     const { schoolId } = req;
@@ -639,6 +674,7 @@ module.exports = {
   reviewSuspiciousPayment,
   streamPaymentEvents,
   initiatePaymentRefund,
+  approvePaymentRefund,
   getPaymentRefunds,
   getSchoolRefunds,
   verifyReceipt,

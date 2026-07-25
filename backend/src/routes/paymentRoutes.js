@@ -40,6 +40,7 @@ const {
   reviewSuspiciousPayment,
   streamPaymentEvents,
   initiatePaymentRefund,
+  approvePaymentRefund,
   getPaymentRefunds,
   getSchoolRefunds,
   verifyReceipt,
@@ -56,10 +57,14 @@ const {
   validateSubmitTransaction,
 } = require("../middleware/validate");
 const { resolveSchool } = require("../middleware/schoolContext");
-const idempotency = require("../middleware/idempotency");
-const { requireAdminAuth, requireSchoolAuth } = require("../middleware/auth");
+const idempotencyMiddleware = require("../middleware/idempotency");
+const { requireAdminAuth } = require("../middleware/auth");
 const { auditContext } = require("../middleware/auditContext");
 const { strictLimiter, verifyLimiter } = require("../middleware/rateLimiter");
+
+// Idempotency middleware for critical payment endpoints that must fail-closed
+// when the datastore becomes unreachable to prevent duplicate submissions.
+const idempotency = idempotencyMiddleware({ criticalPaymentEndpoints: true });
 
 /**
  * @swagger
@@ -141,7 +146,7 @@ const { strictLimiter, verifyLimiter } = require("../middleware/rateLimiter");
  */
 
 // No school context required
-router.get("/verify/:txHash", validateTxHashParam, verifyTransactionHash);
+router.get("/verify/:txHash", validateTxHashParam, verifyLimiter, verifyTransactionHash);
 
 // Validation runs BEFORE resolveSchool so missing-school requests still get
 // proper 400 validation errors when the body itself is invalid.
@@ -206,7 +211,8 @@ router.patch("/:txHash/suspicion-review", requireAdminAuth, auditContext, review
 router.patch("/:txHash/correct-placeholder", requireAdminAuth, auditContext, correctPlaceholderPayment);
 
 router.post("/:txHash/refund", requireAdminAuth, auditContext, initiatePaymentRefund);
-router.get("/:txHash/refunds", requireSchoolAuth(), getPaymentRefunds);
+router.post("/refunds/:refundId/approve", requireAdminAuth, auditContext, approvePaymentRefund);
+router.get("/:txHash/refunds", getPaymentRefunds);
 router.get("/refunds/school/list", requireAdminAuth, getSchoolRefunds);
 
 router.get("/verify/:receiptId", verifyReceipt);
