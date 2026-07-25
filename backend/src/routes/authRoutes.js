@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const rateLimit = require('express-rate-limit');
+const { rl } = require('../middleware/rateLimiter');
 const { handleLogin, handleRefresh, handleLogout, handleMe, handleListSessions, handleRevokeSession } = require('../controllers/authController');
 const {
   setupMfa, verifyAndEnableMfa, disableMfa,
@@ -12,13 +12,12 @@ const { requireAdminAuth, requireSchoolAuth } = require('../middleware/auth');
 const router = express.Router();
 
 // ── Login rate limiter (IP-based, per-account lockout handled in controller) ──
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many login attempts, please try again later.', code: 'RATE_LIMIT_EXCEEDED' },
-});
+// Uses Redis-backed storage shared across replicas when REDIS_HOST is configured.
+const loginLimiter = rl(
+  15 * 60 * 1000,
+  10,
+  { error: 'Too many login attempts, please try again later.', code: 'RATE_LIMIT_EXCEEDED' }
+);
 
 // ── Core auth routes ──────────────────────────────────────────────────────────
 router.post('/login', loginLimiter, handleLogin);

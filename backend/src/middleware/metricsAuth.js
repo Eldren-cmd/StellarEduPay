@@ -2,7 +2,7 @@
 
 // Constant-time string comparison to prevent timing-based token enumeration.
 const { timingSafeEqual } = require('crypto');
-const rateLimit = require('express-rate-limit');
+const { rl } = require('./rateLimiter');
 
 // Minimum token entropy: 32 hex chars = 128-bit key; reject obviously weak tokens.
 const MIN_TOKEN_LENGTH = 32;
@@ -10,13 +10,12 @@ const MIN_TOKEN_LENGTH = 32;
 // Dedicated rate-limiter for /metrics — separate from the main API limiter so
 // Prometheus scrapes are not throttled by normal API traffic and vice-versa.
 // Abuse of the unauthenticated-fast-path is bounded to 60 attempts/minute.
-const metricsRateLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests to metrics endpoint.', code: 'RATE_LIMIT_EXCEEDED' },
-});
+// Uses Redis-backed storage shared across replicas when REDIS_HOST is configured.
+const metricsRateLimiter = rl(
+  60 * 1000,
+  60,
+  { error: 'Too many requests to metrics endpoint.', code: 'RATE_LIMIT_EXCEEDED' }
+);
 
 function safeCompare(a, b) {
   const bufA = Buffer.from(a);

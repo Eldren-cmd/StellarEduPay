@@ -3,8 +3,6 @@ import { createRefreshHandler } from "./authRefresh";
 
 const TIMEOUT_MS = parseInt(process.env.NEXT_PUBLIC_REQUEST_TIMEOUT_MS || "15000", 10);
 
-const SCHOOL_ID = process.env.NEXT_PUBLIC_SCHOOL_ID || "SCH001";
-
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api",
   timeout: TIMEOUT_MS,
@@ -12,13 +10,18 @@ const api = axios.create({
 });
 
 // Attach the school context header to every request unless one is already set.
+// Derives school ID from authenticated user session (stored in localStorage after login).
 // The backend resolves school scope from X-School-ID (or X-School-Slug).
 api.interceptors.request.use((config) => {
   const hasSchoolHeader = Object.keys(config.headers || {}).some(
     (h) => h.toLowerCase() === "x-school-id" || h.toLowerCase() === "x-school-slug"
   );
-  if (!hasSchoolHeader && SCHOOL_ID) {
-    config.headers = { ...config.headers, "X-School-ID": SCHOOL_ID };
+  if (!hasSchoolHeader) {
+    // Get school ID from authenticated user session stored in localStorage
+    const schoolId = typeof window !== 'undefined' ? localStorage.getItem('schoolId') : null;
+    if (schoolId) {
+      config.headers = { ...config.headers, "X-School-ID": schoolId };
+    }
   }
   return config;
 });

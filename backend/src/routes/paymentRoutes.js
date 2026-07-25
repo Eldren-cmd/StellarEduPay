@@ -40,11 +40,13 @@ const {
   reviewSuspiciousPayment,
   streamPaymentEvents,
   initiatePaymentRefund,
+  approvePaymentRefund,
   getPaymentRefunds,
   getSchoolRefunds,
   verifyReceipt,
   getReconciliationReports,
   generateSchoolReconciliationReport,
+  correctPlaceholderPayment,
 } = require('../controllers/paymentAdminController');
 
 const {
@@ -55,10 +57,14 @@ const {
   validateSubmitTransaction,
 } = require("../middleware/validate");
 const { resolveSchool } = require("../middleware/schoolContext");
-const idempotency = require("../middleware/idempotency");
+const idempotencyMiddleware = require("../middleware/idempotency");
 const { requireAdminAuth } = require("../middleware/auth");
 const { auditContext } = require("../middleware/auditContext");
 const { strictLimiter, verifyLimiter } = require("../middleware/rateLimiter");
+
+// Idempotency middleware for critical payment endpoints that must fail-closed
+// when the datastore becomes unreachable to prevent duplicate submissions.
+const idempotency = idempotencyMiddleware({ criticalPaymentEndpoints: true });
 
 /**
  * @swagger
@@ -140,7 +146,7 @@ const { strictLimiter, verifyLimiter } = require("../middleware/rateLimiter");
  */
 
 // No school context required
-router.get("/verify/:txHash", validateTxHashParam, verifyTransactionHash);
+router.get("/verify/:txHash", validateTxHashParam, verifyLimiter, verifyTransactionHash);
 
 // Validation runs BEFORE resolveSchool so missing-school requests still get
 // proper 400 validation errors when the body itself is invalid.
@@ -161,19 +167,20 @@ router.post(
 // All remaining routes require school context
 router.use(resolveSchool);
 
-router.get("/", getAllPayments);
-router.get("/summary", getPaymentSummary);
-router.get("/accepted-assets", getAcceptedAssets);
-router.get("/limits", getPaymentLimitsEndpoint);
-router.get("/sync/status", getSyncStatus);
-router.get("/events", streamPaymentEvents);
-router.get("/overpayments", getOverpayments);
-router.get("/suspicious", getSuspiciousPayments);
-router.get("/pending", getPendingPayments);
+// Payment read endpoints now require authentication (Issue #1040)
+router.get("/", requireSchoolAuth(), getAllPayments);
+router.get("/summary", requireSchoolAuth(), getPaymentSummary);
+router.get("/accepted-assets", requireSchoolAuth(), getAcceptedAssets);
+router.get("/limits", requireSchoolAuth(), getPaymentLimitsEndpoint);
+router.get("/sync/status", requireSchoolAuth(), getSyncStatus);
+router.get("/events", requireSchoolAuth(), streamPaymentEvents);
+router.get("/overpayments", requireSchoolAuth(), getOverpayments);
+router.get("/suspicious", requireSchoolAuth(), getSuspiciousPayments);
+router.get("/pending", requireSchoolAuth(), getPendingPayments);
 router.get("/stuck", requireAdminAuth, getStuckPayments);
 router.get("/retry-queue", requireAdminAuth, getRetryQueue);
-router.get("/rates", getExchangeRates);
-router.get("/dlq", getDeadLetterJobs);
+router.get("/rates", requireSchoolAuth(), getExchangeRates);
+router.get("/dlq", requireSchoolAuth(), getDeadLetterJobs);
 
 router.post(
   "/verify",
@@ -184,25 +191,27 @@ router.post(
 );
 router.post("/sync", strictLimiter, requireAdminAuth, auditContext, syncAllPayments);
 router.post("/finalize", requireAdminAuth, auditContext, finalizePayments);
-router.post("/dlq/:id/retry", retryDeadLetterJob);
+router.post("/dlq/:id/retry", requireSchoolAuth(), retryDeadLetterJob);
 
-router.get("/balance/:studentId", validateStudentIdParam, getStudentBalance);
+router.get("/balance/:studentId", validateStudentIdParam, requireSchoolAuth(), getStudentBalance);
 router.get(
   "/instructions/:studentId",
   validateStudentIdParam,
   getPaymentInstructions,
 );
 router.get("/receipt/:txHash", generateReceipt);
-router.get("/queue/:txHash", getQueueJobStatus);
-router.get("/:studentId", validateStudentIdParam, getStudentPayments);
+router.get("/queue/:txHash", requireSchoolAuth(), getQueueJobStatus);
+router.get("/:studentId", validateStudentIdParam, requireSchoolAuth(), getStudentPayments);
 
-router.post("/:paymentId/lock", lockPaymentForUpdate);
-router.post("/:paymentId/unlock", unlockPayment);
+router.post("/:paymentId/lock", requireSchoolAuth(), lockPaymentForUpdate);
+router.post("/:paymentId/unlock", requireSchoolAuth(), unlockPayment);
 
 router.patch("/:txHash/status", requireAdminAuth, auditContext, updatePaymentStatus);
 router.patch("/:txHash/suspicion-review", requireAdminAuth, auditContext, reviewSuspiciousPayment);
+router.patch("/:txHash/correct-placeholder", requireAdminAuth, auditContext, correctPlaceholderPayment);
 
 router.post("/:txHash/refund", requireAdminAuth, auditContext, initiatePaymentRefund);
+router.post("/refunds/:refundId/approve", requireAdminAuth, auditContext, approvePaymentRefund);
 router.get("/:txHash/refunds", getPaymentRefunds);
 router.get("/refunds/school/list", requireAdminAuth, getSchoolRefunds);
 
